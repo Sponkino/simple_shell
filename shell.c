@@ -1,50 +1,68 @@
-#include "shell.h"
-/**
-* main - carries out the read, execute then print output loop
-* @ac: argument count
-* @av: argument vector
-* @envp: environment vector
-*
-* Return: 0
-*/
+#include "main.h"
 
-int main(int ac, char **av, char *envp[])
+/* global variable for ^C handling */
+unsigned int sig_flag;
+
+/**
+ * sig_handler - handles ^C signal interupt
+ * @uuv: unused variable (required for signal function prototype)
+ *
+ * Return: void
+ */
+static void sig_handler(int uuv)
 {
-	char *line = NULL, *pathcommand = NULL, *path = NULL;
-	size_t bufsize = 0;
-	ssize_t linesize = 0;
-	char **command = NULL, **paths = NULL;
-	(void)envp, (void)av;
-	if (ac < 1)
-		return (-1);
-	signal(SIGINT, handle_signal);
-	while (1)
+	(void) uuv;
+	if (sig_flag == 0)
+		_putss("\n$ ");
+	else
+		_putss("\n");
+}
+
+/**
+ * main - main function for the shell
+ * @argc: number of arguments passed to main
+ * @argv: array of arguments passed to main
+ * @environment: array of environment variables
+ *
+ * Return: 0 or exit status, or ?
+ */
+int main(int argc __attribute__((unused)), char **argv, char **environment)
+{
+	size_t len_buffer = 0;
+	unsigned int is_pipe = 0, i;
+	vars_t vars = {NULL, NULL, NULL, 0, NULL, 0, NULL};
+
+	vars.argv = argv;
+	vars.env = make_envv(environment);
+	signal(SIGINT, sig_handler);
+	if (!isatty(STDIN_FILENO))
+		is_pipe = 1;
+	if (is_pipe == 0)
+		_putss("$ ");
+	sig_flag = 0;
+	while (getline(&(vars.buffer), &len_buffer, stdin) != -1)
 	{
-		free_buffers(command);
-		free_buffers(paths);
-		free(pathcommand);
-		prompt_user();
-		linesize = getline(&line, &bufsize, stdin);
-		if (linesize < 0)
-			break;
-		info.ln_count++;
-		if (line[linesize - 1] == '\n')
-			line[linesize - 1] = '\0';
-		command = tokenizer(line);
-		if (command == NULL || *command == NULL || **command == '\0')
-			continue;
-		if (checker(command, line))
-			continue;
-		path = find_path();
-		paths = tokenizer(path);
-		pathcommand = test_path(paths, command[0]);
-		if (!pathcommand)
-			perror(av[0]);
-		else
-			execution(pathcommand, command);
+		sig_flag = 1;
+		vars.count++;
+		vars.commands = token(vars.buffer, ";");
+		for (i = 0; vars.commands && vars.commands[i] != NULL; i++)
+		{
+			vars.av = token(vars.commands[i], "\n \t\r");
+			if (vars.av && vars.av[0])
+				if (check_for_builtinss(&vars) == NULL)
+					check_for_pathh(&vars);
+		free(vars.av);
+		}
+		free(vars.buffer);
+		free(vars.commands);
+		sig_flag = 0;
+		if (is_pipe == 0)
+			_putss("$ ");
+		vars.buffer = NULL;
 	}
-	if (linesize < 0 && flags.interactive)
-		write(STDERR_FILENO, "\n", 1);
-	free(line);
-	return (0);
+	if (is_pipe == 0)
+		_putss("\n");
+	free_envv(vars.env);
+	free(vars.buffer);
+	exit(vars.status);
 }
