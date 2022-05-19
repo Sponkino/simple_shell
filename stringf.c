@@ -1,5 +1,6 @@
 #include "main.h"
 
+
 /**
  * _putss - writes a string to standard output
  * @str: string to write
